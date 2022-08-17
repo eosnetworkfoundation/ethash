@@ -16,6 +16,12 @@
 #define to_le64(X) X
 #endif
 
+#if defined(ANTELOPE)
+__attribute__((eosio_wasm_import))
+void sha3( const char* input_data, uint32_t input_length,
+            char* output_data, uint32_t output_length, char keccak);
+#endif
+
 /// Loads 64-bit integer from given memory location as little-endian number.
 static inline ALWAYS_INLINE uint64_t load_le(const uint8_t* data)
 {
@@ -356,14 +362,22 @@ static inline ALWAYS_INLINE void keccak(
 union ethash_hash256 ethash_keccak256(const uint8_t* data, size_t size)
 {
     union ethash_hash256 hash;
+    #if defined(ANTELOPE)
+    sha3((const char*)data, size, hash.str, 32, 1);
+    #else
     keccak(hash.word64s, 256, data, size);
+    #endif
     return hash;
 }
 
 union ethash_hash256 ethash_keccak256_32(const uint8_t data[32])
 {
     union ethash_hash256 hash;
+    #if defined(ANTELOPE)
+    sha3((const char*)data, 32, hash.str, 32, 1);
+    #else
     keccak(hash.word64s, 256, data, 32);
+    #endif
     return hash;
 }
 
