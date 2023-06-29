@@ -2,30 +2,28 @@
 # Copyright 2018 Pawel Bylica.
 # Licensed under the Apache License, Version 2.0.
 
-cmake_minimum_required(VERSION 3.16.2)
+cmake_minimum_required(VERSION 3.16.2...3.25)
 
-include(cmake/cable/bootstrap.cmake)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-include(CableBuildType)
 include(CableCompilerSettings)
-include(CableToolchains)
 include(CMakeDependentOption)
 include(CMakePackageConfigHelpers)
-include(HunterGate)
 
-cable_configure_toolchain(DEFAULT cxx14)
-cable_set_build_type(DEFAULT Release CONFIGURATION_TYPES Release RelWithDebInfo Debug)
+option(ETHASH_INSTALL_CMAKE_CONFIG "Install CMake configuration scripts for find_package(CONFIG)" ON)
+option(ETHASH_BUILD_ETHASH "Build ethash::ethash library (if NO only ethash::keccak is built)" YES)
+cmake_dependent_option(ETHASH_BUILD_GLOBAL_CONTEXT "Build ethash::global-context library" YES "ETHASH_BUILD_ETHASH" NO)
+option(ETHASH_TESTING "Build unit tests" NO)
 
-include(cmake/Hunter/init.cmake)
+if(ETHASH_TESTING)
+    include(cmake/Hunter/init.cmake)
+endif()
 
 project(ethash)
-set(PROJECT_VERSION 0.9.0)
+set(PROJECT_VERSION 1.0.1)
 
 cable_configure_compiler(NO_STACK_PROTECTION)
 if(CABLE_COMPILER_GNULIKE)
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Og")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Og")
-
     add_compile_options(
         # -Wcast-align  #TODO: Build fails on mips64
         -Wcast-qual
@@ -37,6 +35,7 @@ if(CABLE_COMPILER_GNULIKE)
         $<$<CXX_COMPILER_ID:Clang>:-Wduplicate-enum>
         $<$<CXX_COMPILER_ID:Clang>:-Wnewline-eof>
         $<$<CXX_COMPILER_ID:Clang>:-Wunreachable-code-aggressive>
+        $<$<CXX_COMPILER_ID:GNU>:-Wno-attributes>
     )
 
     if(MSVC) # clang-cl
@@ -47,29 +46,28 @@ if(CABLE_COMPILER_GNULIKE)
             $<$<COMPILE_LANGUAGE:CXX>:-Wno-old-style-cast>
         )
     endif()
-
-    option(ETHASH_NATIVE "Build for native CPU" OFF)
-    if(ETHASH_NATIVE)
-        add_compile_options(-march=native)
-    endif()
 elseif(MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 4)
     # For Win32 builds allow allocating more than 2 GB of memory.
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LARGEADDRESSAWARE")
 endif()
 
-option(ETHASH_INSTALL_CMAKE_CONFIG "Install CMake configuration scripts for find_package(CONFIG)" ON)
+if(CMAKE_CXX_COMPILER_ID MATCHES Clang)
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Og")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Og")
+    set(CMAKE_C_FLAGS_COVERAGE "${CMAKE_C_FLAGS_DEBUG} -fprofile-instr-generate -fcoverage-mapping")
+    set(CMAKE_CXX_FLAGS_COVERAGE "${CMAKE_CXX_FLAGS_DEBUG} -fprofile-instr-generate -fcoverage-mapping")
+elseif(CMAKE_CXX_COMPILER_ID MATCHES GNU)
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Og")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Og")
+    set(CMAKE_C_FLAGS_COVERAGE "${CMAKE_C_FLAGS_DEBUG} --coverage")
+    set(CMAKE_CXX_FLAGS_COVERAGE "${CMAKE_CXX_FLAGS_DEBUG} --coverage")
+endif()
 
 set(include_dir ${PROJECT_SOURCE_DIR}/include)
 
-option(ETHASH_BUILD_ETHASH "Build ethash::ethash library (if NO only ethash::keccak is built)" YES)
-
-cmake_dependent_option(ETHASH_BUILD_GLOBAL_CONTEXT "Build ethash::global-context library" YES "ETHASH_BUILD_ETHASH" NO)
-
-option(ETHASH_BUILD_TESTS "Build unit tests" YES)
-
 add_subdirectory(lib)
 
-if(ETHASH_BUILD_TESTS)
+if(ETHASH_TESTING)
     enable_testing()
     add_subdirectory(test)
 endif()
